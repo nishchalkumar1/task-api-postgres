@@ -1,5 +1,5 @@
+from datetime import UTC, datetime
 from typing import List, Optional
-from datetime import datetime
 from sqlmodel import Session, select
 from app.models import Task
 from app.schemas import TaskCreate, TaskUpdate
@@ -29,7 +29,7 @@ def update_task(session: Session, task: Task, data: TaskUpdate) -> Task:
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(task, key, value)
-    task.updated_at = datetime.utcnow()
+    task.updated_at = datetime.now(UTC)
     session.add(task)
     session.commit()
     session.refresh(task)

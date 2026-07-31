@@ -2,14 +2,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.database import create_db_and_tables
 from app.router import router as tasks_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create DB tables on startup (fallback when Alembic isn't used)."""
-    create_db_and_tables()
+    """
+    Application lifespan handler.
+
+    Table creation is intentionally omitted here: in production, Alembic
+    migrations (``alembic upgrade head``) are responsible for schema management.
+    In tests, conftest.py calls SQLModel.metadata.create_all on the in-memory
+    SQLite engine before each test function.
+    """
     yield
 
 
