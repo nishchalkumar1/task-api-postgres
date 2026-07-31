@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+
 from app.database import create_db_and_tables
+from app.router import router as tasks_router
 
 
 @asynccontextmanager
@@ -16,6 +19,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+app.include_router(tasks_router)
 
 
 @app.get("/", tags=["root"])
