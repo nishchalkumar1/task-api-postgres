@@ -34,7 +34,7 @@ coverage.xml
 *.swo
 
 # Docker
-.dockerignore
+# .dockerignore is intentionally tracked in git
 
 # OS
 .DS_Store
