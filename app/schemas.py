@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TaskCreate(BaseModel):
     """Schema for creating a new task."""
 
-    title: str
+    title: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     completed: bool = False
 
