@@ -5,6 +5,21 @@ Built for the FlyRank Backend AI Engineering assignment.
 
 ---
 
+## Project Overview
+
+This service exposes a RESTful CRUD API for managing **Tasks**. It uses:
+
+- **FastAPI** for routing and validation  
+- **SQLModel** as the ORM (built on SQLAlchemy + Pydantic v2)  
+- **PostgreSQL 16** as the database  
+- **Alembic** for schema migrations  
+- **Docker Compose** for one-command local deployment  
+- **pytest** + **httpx** for a full unit-test suite (no Docker required for tests)
+
+On every container start, the `entrypoint.sh` script automatically waits for PostgreSQL to be ready and then runs `alembic upgrade head` before serving traffic.
+
+---
+
 ## Tech Stack
 
 | Layer       | Technology               |
@@ -33,17 +48,25 @@ task-api-postgres/
 │   ├── models.py        # SQLModel ORM model (Task)
 │   ├── schemas.py       # Pydantic request/response schemas
 │   ├── crud.py          # DB helper functions
-│   └── dependencies.py  # FastAPI dependencies (session, 404)
+│   ├── dependencies.py  # FastAPI dependencies (session, 404)
+│   └── router.py        # APIRouter — all /tasks endpoints
 ├── alembic/
 │   ├── env.py
 │   ├── script.py.mako
 │   └── versions/
+│       └── 622fc42886c8_create_tasks_table.py
 ├── tests/
+│   ├── __init__.py
+│   ├── conftest.py      # pytest fixtures (in-memory SQLite override)
+│   ├── test_read.py     # Tests for GET endpoints
+│   └── test_write.py    # Tests for POST / PUT / DELETE endpoints
 ├── Dockerfile
 ├── docker-compose.yml
+├── entrypoint.sh        # wait → migrate → serve
 ├── alembic.ini
 ├── requirements.txt
 ├── .env.example
+├── .dockerignore
 └── .gitignore
 ```
 
@@ -57,63 +80,89 @@ Copy `.env.example` to `.env` before running:
 cp .env.example .env
 ```
 
-| Variable            | Default                                                  | Description                  |
-|---------------------|----------------------------------------------------------|------------------------------|
-| `DATABASE_URL`      | `postgresql+psycopg://postgres:postgres@db:5432/tasks`   | Full SQLAlchemy DSN           |
-| `POSTGRES_USER`     | `postgres`                                               | PostgreSQL superuser name     |
-| `POSTGRES_PASSWORD` | `postgres`                                               | PostgreSQL password           |
-| `POSTGRES_DB`       | `tasks`                                                  | Database name                 |
+| Variable            | Default                                                | Description               |
+|---------------------|--------------------------------------------------------|---------------------------|
+| `DATABASE_URL`      | `postgresql+psycopg://postgres:postgres@db:5432/tasks` | Full SQLAlchemy DSN        |
+| `POSTGRES_USER`     | `postgres`                                             | PostgreSQL superuser name  |
+| `POSTGRES_PASSWORD` | `postgres`                                             | PostgreSQL password        |
+| `POSTGRES_DB`       | `tasks`                                                | Database name              |
+
+> **Note:** All variables have safe defaults in `docker-compose.yml` so the stack starts even without a `.env` file.
 
 ---
 
 ## Installation (local, without Docker)
 
 ```bash
+# Create and activate a virtual environment
 python -m venv .venv
+
 # Windows
 .venv\Scripts\activate
 # macOS / Linux
 source .venv/bin/activate
 
+# Install dependencies
 pip install -r requirements.txt
 ```
+
+> Tests run locally against an **in-memory SQLite** database — no PostgreSQL needed.
 
 ---
 
 ## Docker Setup
 
-### Build & start all services
+### 1. Start all services
 
 ```bash
 docker compose up --build
 ```
 
-Docker Compose starts PostgreSQL first, waits for its healthcheck to pass, then starts the API.
+This single command:
+1. Builds the API image
+2. Starts PostgreSQL and waits for it to pass its healthcheck
+3. Runs `alembic upgrade head` automatically inside the API container
+4. Starts Uvicorn on port `8000`
 
-### Stop all services
+### 2. Stop all services
 
 ```bash
 docker compose down
 ```
 
-### Stop and remove volumes (wipes database)
+### 3. Stop and wipe the database volume
 
 ```bash
 docker compose down -v
+```
+
+### 4. Rebuild after code changes
+
+```bash
+docker compose up --build
+```
+
+### 5. View live logs
+
+```bash
+docker compose logs -f api
+docker compose logs -f db
 ```
 
 ---
 
 ## Alembic — Database Migrations
 
-### Generate first migration (autogenerate from models)
+> Migrations run **automatically** on container start via `entrypoint.sh`.  
+> Use the commands below only when creating new migrations or managing history manually.
+
+### Generate a new migration (autogenerate from model changes)
 
 ```bash
-# Inside the running api container
-docker compose exec api alembic revision --autogenerate -m "create tasks table"
+docker compose exec api alembic revision --autogenerate -m "describe your change"
 ```
 
-### Apply migrations
+### Apply all pending migrations
 
 ```bash
 docker compose exec api alembic upgrade head
@@ -131,19 +180,44 @@ docker compose exec api alembic downgrade -1
 docker compose exec api alembic history --verbose
 ```
 
+### Check current revision
+
+```bash
+docker compose exec api alembic current
+```
+
+### Current Migrations
+
+| Revision     | Description         |
+|--------------|---------------------|
+| `622fc42886c8` | create_tasks_table |
+
 ---
 
 ## API Endpoints
 
-| Method | Path           | Description                     | Success Code |
-|--------|----------------|---------------------------------|--------------|
-| GET    | `/`            | Root — confirms API is running  | 200          |
-| GET    | `/health`      | Health check                    | 200          |
-| GET    | `/tasks`       | List all tasks                  | 200          |
-| GET    | `/tasks/{id}`  | Get a single task               | 200          |
-| POST   | `/tasks`       | Create a new task               | 201          |
-| PUT    | `/tasks/{id}`  | Update an existing task         | 200          |
-| DELETE | `/tasks/{id}`  | Delete a task                   | 204          |
+| Method   | Path          | Description                    | Success | Error |
+|----------|---------------|--------------------------------|---------|-------|
+| `GET`    | `/`           | Root — confirms API is running | `200`   | —     |
+| `GET`    | `/health`     | Health check                   | `200`   | —     |
+| `GET`    | `/tasks`      | List all tasks                 | `200`   | —     |
+| `GET`    | `/tasks/{id}` | Get a single task by ID        | `200`   | `404` |
+| `POST`   | `/tasks`      | Create a new task              | `201`   | `422` |
+| `PUT`    | `/tasks/{id}` | Update an existing task        | `200`   | `404` `422` |
+| `DELETE` | `/tasks/{id}` | Delete a task                  | `204`   | `404` |
+
+### Task Schema
+
+```json
+{
+  "id":          1,
+  "title":       "Buy groceries",
+  "description": "Milk, eggs, bread",
+  "completed":   false,
+  "created_at":  "2024-01-01T10:00:00",
+  "updated_at":  "2024-01-01T10:00:00"
+}
+```
 
 ---
 
@@ -157,21 +231,52 @@ cd task-api-postgres
 # 2. Copy environment file
 cp .env.example .env
 
-# 3. Start with Docker Compose
+# 3. Start with Docker Compose (builds, migrates, and serves automatically)
 docker compose up --build
-
-# 4. Apply migrations
-docker compose exec api alembic upgrade head
 ```
+
+The API will be live at **http://localhost:8000**
 
 ---
 
 ## Swagger UI
 
-Once running, open:
+Interactive API documentation is available at:
 
 ```
 http://localhost:8000/docs
+```
+
+ReDoc (alternative docs):
+
+```
+http://localhost:8000/redoc
+```
+
+---
+
+## Running Tests
+
+Tests use an **in-memory SQLite** database — no Docker or PostgreSQL needed.
+
+```bash
+# Install dependencies (if not already done)
+pip install -r requirements.txt
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run only read tests
+python -m pytest tests/test_read.py -v
+
+# Run only write tests
+python -m pytest tests/test_write.py -v
+```
+
+Expected output:
+
+```
+21 passed in 0.35s
 ```
 
 ---
@@ -188,18 +293,28 @@ curl http://localhost:8000/health
 # List all tasks
 curl http://localhost:8000/tasks
 
-# Create a task
+# Create a task (minimal)
 curl -X POST http://localhost:8000/tasks \
   -H "Content-Type: application/json" \
-  -d '{"title": "Buy groceries", "description": "Milk, eggs, bread"}'
+  -d '{"title": "Buy groceries"}'
+
+# Create a task (full)
+curl -X POST http://localhost:8000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Buy groceries", "description": "Milk, eggs, bread", "completed": false}'
 
 # Get task by id
 curl http://localhost:8000/tasks/1
 
-# Update task
+# Update task (partial — only changed fields needed)
 curl -X PUT http://localhost:8000/tasks/1 \
   -H "Content-Type: application/json" \
   -d '{"completed": true}'
+
+# Update task title
+curl -X PUT http://localhost:8000/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Buy groceries and coffee"}'
 
 # Delete task
 curl -X DELETE http://localhost:8000/tasks/1
@@ -209,7 +324,37 @@ curl -X DELETE http://localhost:8000/tasks/1
 
 ## Screenshots
 
-> _Screenshots will be added in Stage 5._
+> Run `docker compose up --build` and open `http://localhost:8000/docs` to see the live API.
+
+### Swagger UI — Endpoint List
+<!-- Add screenshot: docs page showing all endpoints expanded -->
+![Swagger UI](screenshots/swagger_ui.png)
+
+### POST /tasks — Create Task
+<!-- Add screenshot: POST request body and 201 response in Swagger -->
+![Create Task](screenshots/create_task.png)
+
+### GET /tasks — List All Tasks
+<!-- Add screenshot: GET /tasks response with created tasks -->
+![List Tasks](screenshots/list_tasks.png)
+
+### GET /tasks/{id} — Single Task
+<!-- Add screenshot: GET /tasks/1 response -->
+![Get Task](screenshots/get_task.png)
+
+### PUT /tasks/{id} — Update Task
+<!-- Add screenshot: PUT request body and 200 response -->
+![Update Task](screenshots/update_task.png)
+
+### DELETE /tasks/{id} — Delete Task
+<!-- Add screenshot: DELETE returning 204 No Content -->
+![Delete Task](screenshots/delete_task.png)
+
+### docker compose up — Terminal Output
+<!-- Add screenshot: terminal showing db healthy + alembic upgrade head + uvicorn started -->
+![Docker Compose Up](screenshots/docker_compose_up.png)
+
+> **To add screenshots:** Create a `screenshots/` folder, run the app, capture each interaction in Swagger UI, and replace the placeholder image paths above.
 
 ---
 
