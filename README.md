@@ -324,37 +324,23 @@ curl -X DELETE http://localhost:8000/tasks/1
 
 ## Screenshots
 
-> Run `docker compose up --build` and open `http://localhost:8000/docs` to see the live API.
-
 ### Swagger UI — Endpoint List
-<!-- Add screenshot: docs page showing all endpoints expanded -->
 ![Swagger UI](screenshots/swagger_ui.png)
 
 ### POST /tasks — Create Task
-<!-- Add screenshot: POST request body and 201 response in Swagger -->
 ![Create Task](screenshots/create_task.png)
 
 ### GET /tasks — List All Tasks
-<!-- Add screenshot: GET /tasks response with created tasks -->
 ![List Tasks](screenshots/list_tasks.png)
 
 ### GET /tasks/{id} — Single Task
-<!-- Add screenshot: GET /tasks/1 response -->
 ![Get Task](screenshots/get_task.png)
 
 ### PUT /tasks/{id} — Update Task
-<!-- Add screenshot: PUT request body and 200 response -->
 ![Update Task](screenshots/update_task.png)
 
 ### DELETE /tasks/{id} — Delete Task
-<!-- Add screenshot: DELETE returning 204 No Content -->
 ![Delete Task](screenshots/delete_task.png)
-
-### docker compose up — Terminal Output
-<!-- Add screenshot: terminal showing db healthy + alembic upgrade head + uvicorn started -->
-![Docker Compose Up](screenshots/docker_compose_up.png)
-
-> **To add screenshots:** Create a `screenshots/` folder, run the app, capture each interaction in Swagger UI, and replace the placeholder image paths above.
 
 ---
 
